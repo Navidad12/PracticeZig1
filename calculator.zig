@@ -1,27 +1,60 @@
 const std = @import("std");
 
-pub fn main() !void {
-    const a: f64 = undefined;
+fn readFloat(alloc: std.mem.Allocator, prompt: []const u8) !f64 {
+    const stdout = std.io.getStdOut().writer();
+    try stdout.print("{s}", .{prompt});
 
-    var buf: [100]u8 = undefined;
-    const scan = std.io.getscan().reader(&buf);
+    const stdin = std.io.getStdIn().reader();
+    const line = try stdin.readUntilDelimiterAlloc(alloc, '\n', 256);
+    defer alloc.free(line);
 
-    std.debug.print("Enter first number: ", .{});
-    if (try scan.readUntilDelimiterAlloc(alloc, '\n', 256)) |input| {
-        const trimmed = std.mem.trim(u8, input, "\n\r");
-        a = try std.fmt.parseFloat(f64, trimmed);
-    }
+    const trimmed = std.mem.trim(u8, line, " \t\r");
+    return std.fmt.parseFloat(f64, trimmed);
 }
 
-pub fn aDD(a: f64, b: f64) f64 {
+fn readOp(alloc: std.mem.Allocator) !u8 {
+    const stdout = std.io.getStdOut().writer();
+    try stdout.print("Enter operator (+, -, *, /): ", .{});
+
+    const stdin = std.io.getStdIn().reader();
+    const line = try stdin.readUntilDelimiterAlloc(alloc, '\n', 16);
+    defer alloc.free(line);
+
+    const trimmed = std.mem.trim(u8, line, " \t\r");
+    if (trimmed.len == 0) return error.EmptyOperator;
+    return trimmed[0];
+}
+
+fn add(a: f64, b: f64) f64 {
     return a + b;
 }
-pub fn sUB(a: f64, b: f64) f64 {
+fn sub(a: f64, b: f64) f64 {
     return a - b;
 }
-pub fn mUL(a: f64, b: f64) f64 {
+fn mul(a: f64, b: f64) f64 {
     return a * b;
 }
-pub fn dIV(a: f64, b: f64) f64 {
+fn div(a: f64, b: f64) f64 {
     return a / b;
+}
+
+pub fn main() !void {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const alloc = gpa.allocator();
+
+    const a = try readFloat(alloc, "Enter first number: ");
+    const op = try readOp(alloc);
+    const b = try readFloat(alloc, "Enter second number: ");
+
+    const result = switch (op) {
+        '+' => add(a, b),
+        '-' => sub(a, b),
+        '*' => mul(a, b),
+        '/' => if (b == 0) return error.DivisionByZero else div(a, b),
+        else => return error.UnknownOperator,
+    };
+
+    const stdout = std.io.getStdOut().writer();
+    try stdout.print("Result: {d:.2}\n", .{result});
 }
